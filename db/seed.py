@@ -8,181 +8,258 @@ from core.scoring import ARCHETYPES
 from db.database import SessionLocal
 from db.models import Option, Question, QuestionType, TestStatus, TestVersion
 
-VERSION_NAME = "v2-ru-grouped"
+VERSION_NAME = "v3-ru-576"
 
-DRIVERS = [
-    "Роль и границы",
-    "Скорость изменений",
-    "Надежность",
-    "Безопасность и комплаенс",
-    "Экономика платформы",
+BLOCKS: list[tuple[str, str, int]] = [
+    ("A", "Роль и границы", 10),
+    ("B", "Клиент и ценностное обещание", 10),
+    ("C", "Операционная модель и управление работой", 14),
+    ("D", "Технологический стиль и инструменты", 10),
+    ("E", "Экономика, бюджет и прозрачность", 10),
+    ("F", "Метрики, качество и производительность", 8),
+    ("G", "Культура, компетенции, управление людьми", 10),
 ]
 
-ARCHETYPE_LABELS = {
-    "Operator": "Operator (Оператор)",
-    "InternalOutsourcer": "InternalOutsourcer (Внутренний аутсорсер)",
-    "FeatureFactory": "FeatureFactory (Фабрика фич)",
-    "ProductFactory": "ProductFactory (Продуктовая фабрика)",
-    "PlatformHouse": "PlatformHouse (Платформенный дом)",
-    "CompetenceCenter": "CompetenceCenter (Центр компетенций)",
-    "DigitalTransformationCenter": "DigitalTransformationCenter (Центр цифровой трансформации)",
-    "CaptiveExporter": "CaptiveExporter (Кэптив-экспортер)",
+PROFILES: dict[str, dict[str, str]] = {
+    "Operator": {
+        "label": "Оператор базовых сервисов",
+        "role": "каталог услуг, SLA/SLO, инциденты/изменения/проблемы",
+        "client": "внутренние потребители базовых сервисов",
+        "value": "доступность, надежность и время восстановления",
+        "ops": "наблюдаемость, автоматизация операций и управление инцидентами",
+        "tech": "ITSM, CMDB, мониторинг, алертинг, runbook",
+        "econ": "стоимость единицы сервиса и прозрачность затрат",
+        "metrics": "SLA, SLO, MTTR, MTTD и повторные инциденты",
+        "people": "дежурства, развитие эксплуатационных компетенций и сменные ритуалы",
+    },
+    "InternalOutsourcer": {
+        "label": "Внутренний аутсорсер (ресурсный пул)",
+        "role": "управление спросом на ресурсы, SLA на выделение, матричная ответственность",
+        "client": "внутренние заказчики специалистов и компетенций",
+        "value": "скорость укомплектования и предсказуемость поставки ресурса",
+        "ops": "очередь заявок, утилизация, доступность ролей и замещения",
+        "tech": "система ресурсного планирования, профили навыков, отчетность по SLA",
+        "econ": "стоимость роли, showback по подразделениям и эффект от снижения простоя",
+        "metrics": "время закрытия заявки, утилизация, качество аллокации, стабильность команды",
+        "people": "матрица компетенций, развитие дефицитных навыков, калибровка оценок",
+    },
+    "FeatureFactory": {
+        "label": "Фабрика фич",
+        "role": "поставка функциональности с контролем throughput, WIP и предсказуемости",
+        "client": "внутренние заказчики фич и продуктовые команды",
+        "value": "скорость и предсказуемость поставки при стабильном качестве",
+        "ops": "управление очередью, стандарты требований, контроль блокеров и cycle time",
+        "tech": "трекер потока, CI/CD, шаблоны требований, релизные артефакты",
+        "econ": "стоимость поставки фич и экономический эффект ускорения потока",
+        "metrics": "throughput, cycle time, predictability, доля доработок",
+        "people": "delivery-практики, ритуалы улучшения потока, обмен инженерными практиками",
+    },
+    "ProductFactory": {
+        "label": "Продуктовая фабрика",
+        "role": "product ownership, discovery, roadmap и ответственность за outcomes",
+        "client": "пользователи продукта и бизнес-владельцы сценариев",
+        "value": "рост adoption, time-to-value и подтвержденный продуктовый эффект",
+        "ops": "непрерывный discovery/delivery, гипотезы, эксперименты, roadmap",
+        "tech": "продуктовая аналитика, feature flags, product contracts, эксперименты",
+        "econ": "unit economics, бюджет портфеля и ROI инициатив",
+        "metrics": "adoption, retention, конверсия, скорость достижения outcomes",
+        "people": "кросс-функциональные продуктовые команды и продуктовые компетенции",
+    },
+    "PlatformHouse": {
+        "label": "Платформенный дом",
+        "role": "внутренние платформенные продукты, platform contracts и ownership",
+        "client": "команды-потребители платформы",
+        "value": "developer experience, adoption и надежная интеграция",
+        "ops": "platform roadmap, RFC, управление совместимостью и миграциями",
+        "tech": "self-service, golden paths, API contracts, policy-as-code",
+        "econ": "стоимость платформенных capability и эффект повторного использования",
+        "metrics": "adoption платформы, DX, надежность и скорость онбординга команд",
+        "people": "platform engineering компетенции и сервисная культура взаимодействия",
+    },
+    "CompetenceCenter": {
+        "label": "Центр компетенций (R&D / CoE)",
+        "role": "портфель исследований, стандарты, методологии и внутренний консалтинг",
+        "client": "внутренние команды и владельцы процессов",
+        "value": "экспертная поддержка, трансфер в прод и масштабирование практик",
+        "ops": "управление запросами на экспертизу, пилоты, внедрение рекомендаций",
+        "tech": "витрина компетенций, репозиторий стандартов, библиотека референсов",
+        "econ": "стоимость экспертных услуг и измеряемый эффект внедрения",
+        "metrics": "доля внедренных рекомендаций, скорость обработки запроса, зрелость практик",
+        "people": "экспертные треки, менторство, сообщества практик",
+    },
+    "DigitalTransformationCenter": {
+        "label": "Центр цифровой трансформации",
+        "role": "портфель трансформационных инициатив и change management",
+        "client": "бизнес-подразделения и владельцы процессов",
+        "value": "достижение OKR, бизнес-ownership эффекта и устойчивое внедрение",
+        "ops": "портфельное управление, stage-gate, сопровождение внедрения",
+        "tech": "инструменты портфеля, OKR, мониторинг adoption и прогресса",
+        "econ": "бюджет трансформации, эффект инициатив и прозрачность затрат",
+        "metrics": "достижение OKR, скорость этапов, adoption изменений, time-to-effect",
+        "people": "лидеры изменений, коммуникации, развитие change-компетенций",
+    },
+    "CaptiveExporter": {
+        "label": "Кэптив-экспортер (вывод услуг/продуктов на внешний рынок)",
+        "role": "GTM, продажи, юр/коммерческие контуры, клиентская поддержка и P&L",
+        "client": "внешние клиенты и партнеры",
+        "value": "рыночная ценность, выполнение контрактов, рост выручки и маржи",
+        "ops": "воронка продаж, контрактование, handoff в delivery и поддержку",
+        "tech": "CRM, CPQ, биллинг, support-платформа, P&L-дашборды",
+        "econ": "выручка, маржинальность, CAC/NRR и контроль дебиторки",
+        "metrics": "конверсия pipeline, SLA контракта, удержание, P&L по направлениям",
+        "people": "коммерческие, юридические и клиентские компетенции внешнего рынка",
+    },
 }
 
-SECONDARY = {
-    "Operator": "PlatformHouse",
-    "InternalOutsourcer": "CaptiveExporter",
-    "FeatureFactory": "ProductFactory",
-    "ProductFactory": "FeatureFactory",
-    "PlatformHouse": "Operator",
-    "CompetenceCenter": "Operator",
-    "DigitalTransformationCenter": "ProductFactory",
-    "CaptiveExporter": "InternalOutsourcer",
-}
 
-OPPOSITE = {
-    "Operator": "FeatureFactory",
-    "InternalOutsourcer": "ProductFactory",
-    "FeatureFactory": "Operator",
-    "ProductFactory": "InternalOutsourcer",
-    "PlatformHouse": "CaptiveExporter",
-    "CompetenceCenter": "FeatureFactory",
-    "DigitalTransformationCenter": "InternalOutsourcer",
-    "CaptiveExporter": "PlatformHouse",
-}
+def block_templates(block_letter: str) -> list[str]:
+    if block_letter == "A":
+        return [
+            "Роль по {role} определена и используется в регулярном управлении.",
+            "Границы ответственности по {role} зафиксированы и регулярно обновляются.",
+            "Матрица ответственности по ключевым решениям по {role} работает в реальности.",
+            "Процесс входа новых задач по {role} определен и применяется без ручных обходов.",
+            "Регламент эскалации по {role} используется и закрывается по срокам.",
+            "Владельцы по ключевым объектам по {role} назначены и подтверждены в артефактах.",
+            "Критерии готовности по {role} определены и проверяются перед запуском.",
+            "Границы взаимодействия с соседними функциями по {role} описаны и используются.",
+            "Регулярный обзор ответственности по {role} проводится и протоколируется.",
+            "Изменения мандата по {role} обновляются по итогам управленческого цикла.",
+        ]
+    if block_letter == "B":
+        return [
+            "Сегменты {client} описаны и связаны с измеряемым обещанием ценности.",
+            "Ценностное обещание по {value} зафиксировано и используется в приоритизации.",
+            "Уровни сервиса для {client} определены и регулярно пересматриваются.",
+            "Обратная связь {client} собирается регулярно и используется в решениях.",
+            "Критерии приемки результата для {client} определены и применяются.",
+            "Изменения ожиданий {client} фиксируются и обновляются в артефактах.",
+            "Отчетность по исполнению обещаний для {client} публикуется по календарю.",
+            "Приоритеты запросов {client} определяются по прозрачным критериям ценности.",
+            "Планы улучшений клиентского опыта для {client} формируются и закрываются.",
+            "Фактическая удовлетворенность {client} измеряется и используется в roadmap.",
+        ]
+    if block_letter == "C":
+        return [
+            "Backlog по {ops} ведется в едином контуре и регулярно приоритизируется.",
+            "Операционный поток по {ops} работает по согласованным правилам этапов.",
+            "Ритм планирования по {ops} закреплен и соблюдается командами.",
+            "Правила приоритизации по {ops} основаны на измеряемых критериях.",
+            "Управление очередью по {ops} используется и отражает фактическое состояние.",
+            "Ограничения незавершенной работы по {ops} установлены и соблюдаются.",
+            "Блокеры по {ops} фиксируются и закрываются назначенными владельцами.",
+            "Межкомандные зависимости по {ops} отслеживаются и закрываются регулярно.",
+            "Риски по {ops} ведутся в журнале и закрываются по плану действий.",
+            "Операционные review по {ops} проводятся и приводят к конкретным изменениям.",
+            "Передача изменений по {ops} выполняется через формализованный handover.",
+            "Решения о масштабировании по {ops} принимаются по данным фактического эффекта.",
+            "Сопровождение внедрения по {ops} работает до достижения стабильного режима.",
+            "Ретроспективы по {ops} проводятся регулярно и закрывают согласованные действия.",
+        ]
+    if block_letter == "D":
+        return [
+            "Технологический контур по {tech} стандартизирован и используется в работе.",
+            "Наблюдаемость по {tech} встроена и доступна в регулярных дашбордах.",
+            "Ключевые артефакты по {tech} поддерживаются в актуальном состоянии.",
+            "Автоматизация процессов по {tech} работает и обновляется регулярно.",
+            "Технические контракты по {tech} определены и используются командами.",
+            "Качество данных по {tech} проверяется и используется в управлении.",
+            "Интеграции инструментов по {tech} настроены и поддерживаются.",
+            "Контур доступа и аудита по {tech} формализован и применяется.",
+            "База знаний по {tech} обновляется и используется в ежедневной работе.",
+            "Технический долг по {tech} учитывается в backlog и регулярно закрывается.",
+        ]
+    if block_letter == "E":
+        return [
+            "Экономическая модель по {econ} определена и используется в бюджетировании.",
+            "Бюджетный контур по {econ} структурирован и регулярно обновляется.",
+            "Прозрачность затрат по {econ} обеспечена через регулярную отчетность.",
+            "Единичная экономика по {econ} рассчитывается и используется в решениях.",
+            "Отклонения план-факт по {econ} измеряются и закрываются корректировками.",
+            "Инвестиции в улучшения по {econ} привязаны к измеряемому эффекту.",
+            "Showback/chargeback по {econ} используется стейкхолдерами.",
+            "Финансовые риски по {econ} отслеживаются и управляются регулярно.",
+            "Перераспределение бюджета по {econ} проводится на основе данных.",
+            "Экономический эффект по {econ} измеряется и публикуется по циклу.",
+        ]
+    if block_letter == "F":
+        return [
+            "KPI по {metrics} определены и регулярно измеряются.",
+            "Скорость выполнения по {metrics} рассчитывается и используется в управлении.",
+            "Качество результата по {metrics} измеряется и обсуждается в review.",
+            "Предсказуемость поставки по {metrics} рассчитывается и улучшается.",
+            "Повторяемые потери по {metrics} измеряются и снижаются.",
+            "Производительность по {metrics} оценивается с учетом сложности работ.",
+            "Соблюдение сервисных обязательств по {metrics} контролируется регулярно.",
+            "Метрики эффекта по {metrics} используются в управленческих решениях.",
+        ]
+    return [
+        "Матрица компетенций по {people} поддерживается и используется в развитии.",
+        "Программа обучения по {people} работает и обновляется по фактическим дефицитам.",
+        "Роли наставничества по {people} назначены и используются в адаптации.",
+        "Командные ретроспективы по {people} проводятся и закрывают действия.",
+        "Система мотивации по {people} связана с измеряемыми результатами.",
+        "Карьерные треки по {people} формализованы и пересматриваются.",
+        "Сообщества практик по {people} работают по регулярному календарю.",
+        "Управление нагрузкой по {people} ведется на основе фактических метрик.",
+        "Руководители используют метрики по {people} в регулярной обратной связи.",
+        "Решения по найму и развитию по {people} принимаются по измеряемым разрывам.",
+    ]
 
 
-def full_weights(
-    primary: str,
-    secondary: str | None = None,
-    primary_weight: float = 1.0,
-    secondary_weight: float = 0.6,
-    base: float = 0.2,
-) -> dict[str, float]:
-    weights = {a: base for a in ARCHETYPES}
-    weights[primary] = primary_weight
-    if secondary:
-        weights[secondary] = secondary_weight
-    return weights
-
-
-def scale_weights(primary: str, secondary: str | None, value: int) -> dict[str, float]:
-    factor = value / 5.0
-    return full_weights(
-        primary=primary,
-        secondary=secondary,
-        primary_weight=1.0 * factor,
-        secondary_weight=0.6 * factor,
-        base=0.1 * factor,
+def render_statement(profile: dict[str, str], template: str) -> str:
+    return template.format(
+        role=profile["role"],
+        client=profile["client"],
+        value=profile["value"],
+        ops=profile["ops"],
+        tech=profile["tech"],
+        econ=profile["econ"],
+        metrics=profile["metrics"],
+        people=profile["people"],
     )
 
 
-def build_questions() -> list[dict[str, Any]]:
-    questions: list[dict[str, Any]] = [
-        {
-            "group_name": "Роль и границы",
-            "text": "Где сосредоточена ответственность за бизнес-результат IT?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": DRIVERS[0],
-            "options": [
-                {
-                    "text": "В операционном контуре с упором на стабильность",
-                    "weights": full_weights("Operator", "CompetenceCenter"),
-                },
-                {
-                    "text": "В продуктовых командах с P&L по направлениям",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "В платформенной функции, обслуживающей домены",
-                    "weights": full_weights("PlatformHouse", "DigitalTransformationCenter"),
-                },
-            ],
-        },
-        {
-            "group_name": "Роль и границы",
-            "text": "Как обычно принимаются решения по изменениям в IT-ландшафте?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": DRIVERS[1],
-            "options": [
-                {
-                    "text": "Через единый центр и стандартизированные процессы",
-                    "weights": full_weights("CompetenceCenter", "Operator"),
-                },
-                {
-                    "text": "Через автономные команды с высокой скоростью",
-                    "weights": full_weights("FeatureFactory", "ProductFactory"),
-                },
-                {
-                    "text": "Через программу трансформации с межфункциональной координацией",
-                    "weights": full_weights("DigitalTransformationCenter", "PlatformHouse"),
-                },
-            ],
-        },
-        {
-            "group_name": "Роль и границы",
-            "text": "Насколько четко определены границы сервисов и команд?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[0],
-            "scale_primary": "PlatformHouse",
-            "scale_secondary": "CompetenceCenter",
-        },
-        {
-            "group_name": "Роль и границы",
-            "text": "Насколько критична предсказуемость операций и SLA?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[2],
-            "scale_primary": "Operator",
-            "scale_secondary": "PlatformHouse",
-        },
-    ]
+def build_question_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for archetype_key in ARCHETYPES:
+        profile = PROFILES[archetype_key]
+        archetype_label = profile["label"]
+        question_id = 1
 
-    for archetype in ARCHETYPES:
-        secondary = SECONDARY[archetype]
-        opposite = OPPOSITE[archetype]
-        label = ARCHETYPE_LABELS[archetype]
-        group_name = f"Архетип: {label}"
+        for block_letter, block_name, expected in BLOCKS:
+            templates = block_templates(block_letter)
+            if len(templates) != expected:
+                raise RuntimeError(
+                    f"Template count mismatch for {block_letter}: {len(templates)} != {expected}"
+                )
+            for template in templates:
+                statement = render_statement(profile, template)
+                rows.append(
+                    {
+                        "archetype": archetype_key,
+                        "group_name": f"{archetype_label} | {block_letter} | {block_name}",
+                        "driver_tag": block_letter,
+                        "text": (
+                            f"{archetype_label} | {block_letter} | {block_name} | "
+                            f"{question_id} | {statement}"
+                        ),
+                    }
+                )
+                question_id += 1
 
-        questions.append(
-            {
-                "group_name": group_name,
-                "text": f"Насколько вашей организации близок управленческий фокус «{label}»?",
-                "type": QuestionType.SCALE,
-                "required": True,
-                "driver_tag": None,
-                "scale_primary": archetype,
-                "scale_secondary": secondary,
-            }
-        )
-        questions.append(
-            {
-                "group_name": group_name,
-                "text": f"Какой сценарий лучше описывает вашу организацию в контексте «{label}»?",
-                "type": QuestionType.SINGLE,
-                "required": True,
-                "driver_tag": None,
-                "options": [
-                    {
-                        "text": f"Явный приоритет на модель {label}",
-                        "weights": full_weights(archetype, secondary),
-                    },
-                    {
-                        "text": "Сбалансированная модель между текущим и соседним архетипом",
-                        "weights": full_weights(secondary, archetype),
-                    },
-                    {
-                        "text": "Фокус на альтернативной организационной модели",
-                        "weights": full_weights(opposite, secondary),
-                    },
-                ],
-            }
-        )
+        if question_id != 73:
+            raise RuntimeError(f"Invalid question range for {archetype_label}: {question_id - 1}")
 
-    return questions
+    if len(rows) != 576:
+        raise RuntimeError(f"Expected 576 questions, got {len(rows)}")
+    return rows
+
+
+def option_weights(archetype_key: str, value: int) -> dict[str, float]:
+    weights = {name: 0.0 for name in ARCHETYPES}
+    weights[archetype_key] = float(value)
+    return weights
 
 
 def seed() -> None:
@@ -197,42 +274,27 @@ def seed() -> None:
         session.add(version)
         session.flush()
 
-        questions = build_questions()
-        if not (20 <= len(questions) <= 25):
-            raise RuntimeError("Seed must create between 20 and 25 questions")
-
-        for q in questions:
+        for payload in build_question_rows():
             question = Question(
                 version_id=version.id,
-                text=q["text"],
-                type=q["type"],
-                required=q["required"],
-                driver_tag=q["driver_tag"],
-                group_name=q["group_name"],
+                text=payload["text"],
+                type=QuestionType.SCALE,
+                required=True,
+                driver_tag=payload["driver_tag"],
+                group_name=payload["group_name"],
             )
             session.add(question)
             session.flush()
 
-            if q["type"] == QuestionType.SCALE:
-                primary = q["scale_primary"]
-                secondary = q["scale_secondary"]
-                for value in range(1, 6):
-                    option = Option(
+            for value in range(0, 4):
+                session.add(
+                    Option(
                         question_id=question.id,
                         text=str(value),
                         value=value,
-                        weights=scale_weights(primary, secondary, value),
+                        weights=option_weights(payload["archetype"], value),
                     )
-                    session.add(option)
-            else:
-                for opt in q["options"]:
-                    option = Option(
-                        question_id=question.id,
-                        text=opt["text"],
-                        value=opt.get("value"),
-                        weights=opt["weights"],
-                    )
-                    session.add(option)
+                )
 
         session.commit()
         print(f"Seed completed: {VERSION_NAME}")

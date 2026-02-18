@@ -20,16 +20,18 @@ load_dotenv()
 ADMIN_MODE = os.getenv("ADMIN_MODE", "false").lower() == "true"
 
 DRIVERS = [
-    "P&L ownership",
-    "Time-to-market",
-    "Reliability",
-    "Security/Compliance",
-    "Cost pressure",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
 ]
 
 st.set_page_config(page_title="Archetype Diagnostic Test", layout="centered")
 
-st.title("Archetype Diagnostic Test")
+st.title("Диагностика архетипов")
 
 
 def render_db_not_ready() -> None:
@@ -75,7 +77,7 @@ with SessionLocal() as session:
     option_by_id = {opt.id: opt for q in questions for opt in q.options}
 
     st.write(
-        "Answer the questions below. Required questions must be completed before submitting."
+        "Ответьте на вопросы по шкале 0–3. Все обязательные вопросы должны быть заполнены."
     )
 
     if not st.session_state.started:
@@ -83,7 +85,7 @@ with SessionLocal() as session:
             st.session_state.started = True
         st.stop()
 
-    page_size = 5
+    page_size = 8
     total_pages = ceil(len(questions) / page_size)
     current_page = min(st.session_state.page, total_pages - 1)
 
@@ -92,7 +94,7 @@ with SessionLocal() as session:
         questions[current_page * page_size - 1].group_name if current_page * page_size > 0 else None
     )
 
-    st.caption(f"Page {current_page + 1} of {total_pages}")
+    st.caption(f"Страница {current_page + 1} из {total_pages}")
 
     for q in page_questions:
         if q.group_name and q.group_name != previous_group:
@@ -103,7 +105,7 @@ with SessionLocal() as session:
         if q.type == QuestionType.SINGLE:
             option_ids = [opt.id for opt in q.options]
             st.radio(
-                "Select one",
+                "Выберите вариант",
                 options=option_ids,
                 format_func=lambda oid: option_by_id[oid].text,
                 key=key,
@@ -114,7 +116,7 @@ with SessionLocal() as session:
                 key=lambda oid: option_by_id[oid].value or 0,
             )
             st.radio(
-                "Rate 1-5",
+                "Оценка 0–3",
                 options=option_ids,
                 format_func=lambda oid: option_by_id[oid].text,
                 key=key,
@@ -122,18 +124,18 @@ with SessionLocal() as session:
             )
 
     col_prev, col_next = st.columns(2)
-    if col_prev.button("Previous", disabled=current_page == 0):
+    if col_prev.button("Назад", disabled=current_page == 0):
         st.session_state.page = max(0, current_page - 1)
         st.rerun()
-    if col_next.button("Next", disabled=current_page >= total_pages - 1):
+    if col_next.button("Далее", disabled=current_page >= total_pages - 1):
         st.session_state.page = min(total_pages - 1, current_page + 1)
         st.rerun()
 
     st.divider()
-    user_label = st.text_input("User label (optional)")
-    comment = st.text_area("Comment (optional)")
+    user_label = st.text_input("Метка респондента (опционально)")
+    comment = st.text_area("Комментарий (опционально)")
 
-    if st.button("Submit"):
+    if st.button("Отправить"):
         missing = []
         answers: dict[str, dict[str, object]] = {}
         weights_list = []
@@ -155,7 +157,7 @@ with SessionLocal() as session:
             answers["comment"] = {"text": comment, "value": None}
 
         if missing:
-            st.error("Please answer all required questions before submitting.")
+            st.error("Заполните все обязательные вопросы перед отправкой.")
             st.stop()
 
         scores = sum_weights(weights_list)
@@ -184,14 +186,14 @@ with SessionLocal() as session:
         st.session_state.last_answers = answers
         st.session_state.last_user_label = user_label or None
 
-        st.success("Assessment saved")
+        st.success("Результат сохранен")
 
     if st.session_state.completed and st.session_state.last_result:
-        st.subheader("Results")
+        st.subheader("Результаты")
         st.bar_chart(st.session_state.last_result["percentages"])
-        st.write("Top 2:", ", ".join(st.session_state.last_result["top2"]))
+        st.write("Топ-2:", ", ".join(st.session_state.last_result["top2"]))
         st.write(
-            "Drivers:",
+            "Блоки:",
             ", ".join(st.session_state.last_drivers) if st.session_state.last_drivers else "None",
         )
 
@@ -203,7 +205,7 @@ with SessionLocal() as session:
             "drivers": st.session_state.last_drivers,
         }
         st.download_button(
-            "Download result JSON",
+            "Скачать результат JSON",
             data=json.dumps(result_payload, indent=2),
             file_name="assessment_result.json",
             mime="application/json",
