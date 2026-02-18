@@ -31,7 +31,14 @@ class TestVersion(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    status: Mapped[TestStatus] = mapped_column(SAEnum(TestStatus), nullable=False)
+    status: Mapped[TestStatus] = mapped_column(
+        SAEnum(
+            TestStatus,
+            values_callable=lambda enum: [e.value for e in enum],
+            name="teststatus",
+        ),
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -48,9 +55,17 @@ class Question(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     version_id: Mapped[int] = mapped_column(ForeignKey("test_versions.id"), nullable=False)
     text: Mapped[str] = mapped_column(String(500), nullable=False)
-    type: Mapped[QuestionType] = mapped_column(SAEnum(QuestionType), nullable=False)
+    type: Mapped[QuestionType] = mapped_column(
+        SAEnum(
+            QuestionType,
+            values_callable=lambda enum: [e.value for e in enum],
+            name="questiontype",
+        ),
+        nullable=False,
+    )
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     driver_tag: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    group_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     version: Mapped[TestVersion] = relationship(back_populates="questions")
     options: Mapped[list[Option]] = relationship(

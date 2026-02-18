@@ -88,10 +88,16 @@ with SessionLocal() as session:
     current_page = min(st.session_state.page, total_pages - 1)
 
     page_questions = questions[current_page * page_size : (current_page + 1) * page_size]
+    previous_group = (
+        questions[current_page * page_size - 1].group_name if current_page * page_size > 0 else None
+    )
 
     st.caption(f"Page {current_page + 1} of {total_pages}")
 
     for q in page_questions:
+        if q.group_name and q.group_name != previous_group:
+            st.markdown(f"### {q.group_name}")
+        previous_group = q.group_name
         st.subheader(q.text)
         key = f"q_{q.id}"
         if q.type == QuestionType.SINGLE:
@@ -226,6 +232,8 @@ with SessionLocal() as session:
             if v:
                 for q in sorted(v.questions, key=lambda q: q.id):
                     st.markdown(f"**Q{q.id}. {q.text}**")
+                    if q.group_name:
+                        st.caption(f"Group: {q.group_name}")
                     st.caption(f"Type: {q.type.value} | Required: {q.required}")
                     if q.driver_tag:
                         st.caption(f"Driver: {q.driver_tag}")
@@ -243,6 +251,7 @@ with SessionLocal() as session:
                 qtype = st.selectbox("Type", [QuestionType.SINGLE, QuestionType.SCALE])
                 required = st.checkbox("Required", value=True)
                 driver_tag = st.selectbox("Driver tag", ["None"] + DRIVERS)
+                group_name = st.text_input("Group name")
                 if st.button("Add question"):
                     repo.add_question(
                         session,
@@ -251,6 +260,7 @@ with SessionLocal() as session:
                         qtype=qtype,
                         required=required,
                         driver_tag=None if driver_tag == "None" else driver_tag,
+                        group_name=group_name or None,
                     )
                     st.success("Question added")
 

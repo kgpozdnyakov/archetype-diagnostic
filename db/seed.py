@@ -8,13 +8,48 @@ from core.scoring import ARCHETYPES
 from db.database import SessionLocal
 from db.models import Option, Question, QuestionType, TestStatus, TestVersion
 
+VERSION_NAME = "v2-ru-grouped"
+
 DRIVERS = [
-    "P&L ownership",
-    "Time-to-market",
-    "Reliability",
-    "Security/Compliance",
-    "Cost pressure",
+    "Роль и границы",
+    "Скорость изменений",
+    "Надежность",
+    "Безопасность и комплаенс",
+    "Экономика платформы",
 ]
+
+ARCHETYPE_LABELS = {
+    "Operator": "Operator (Оператор)",
+    "InternalOutsourcer": "InternalOutsourcer (Внутренний аутсорсер)",
+    "FeatureFactory": "FeatureFactory (Фабрика фич)",
+    "ProductFactory": "ProductFactory (Продуктовая фабрика)",
+    "PlatformHouse": "PlatformHouse (Платформенный дом)",
+    "CompetenceCenter": "CompetenceCenter (Центр компетенций)",
+    "DigitalTransformationCenter": "DigitalTransformationCenter (Центр цифровой трансформации)",
+    "CaptiveExporter": "CaptiveExporter (Кэптив-экспортер)",
+}
+
+SECONDARY = {
+    "Operator": "PlatformHouse",
+    "InternalOutsourcer": "CaptiveExporter",
+    "FeatureFactory": "ProductFactory",
+    "ProductFactory": "FeatureFactory",
+    "PlatformHouse": "Operator",
+    "CompetenceCenter": "Operator",
+    "DigitalTransformationCenter": "ProductFactory",
+    "CaptiveExporter": "InternalOutsourcer",
+}
+
+OPPOSITE = {
+    "Operator": "FeatureFactory",
+    "InternalOutsourcer": "ProductFactory",
+    "FeatureFactory": "Operator",
+    "ProductFactory": "InternalOutsourcer",
+    "PlatformHouse": "CaptiveExporter",
+    "CompetenceCenter": "FeatureFactory",
+    "DigitalTransformationCenter": "InternalOutsourcer",
+    "CaptiveExporter": "PlatformHouse",
+}
 
 
 def full_weights(
@@ -43,343 +78,122 @@ def scale_weights(primary: str, secondary: str | None, value: int) -> dict[str, 
 
 
 def build_questions() -> list[dict[str, Any]]:
-    return [
+    questions: list[dict[str, Any]] = [
         {
-            "text": "Where is primary P&L ownership?",
+            "group_name": "Роль и границы",
+            "text": "Где сосредоточена ответственность за бизнес-результат IT?",
             "type": QuestionType.SINGLE,
             "required": True,
             "driver_tag": DRIVERS[0],
             "options": [
                 {
-                    "text": "In the operations center",
+                    "text": "В операционном контуре с упором на стабильность",
                     "weights": full_weights("Operator", "CompetenceCenter"),
                 },
                 {
-                    "text": "In product teams",
+                    "text": "В продуктовых командах с P&L по направлениям",
                     "weights": full_weights("ProductFactory", "FeatureFactory"),
                 },
                 {
-                    "text": "In the platform organization",
+                    "text": "В платформенной функции, обслуживающей домены",
                     "weights": full_weights("PlatformHouse", "DigitalTransformationCenter"),
                 },
             ],
         },
         {
-            "text": "How frequently do business priorities change?",
-            "type": QuestionType.SCALE,
+            "group_name": "Роль и границы",
+            "text": "Как обычно принимаются решения по изменениям в IT-ландшафте?",
+            "type": QuestionType.SINGLE,
             "required": True,
             "driver_tag": DRIVERS[1],
-            "scale_primary": "FeatureFactory",
-            "scale_secondary": "ProductFactory",
-        },
-        {
-            "text": "How critical is service reliability?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[2],
-            "scale_primary": "Operator",
-            "scale_secondary": "PlatformHouse",
-        },
-        {
-            "text": "Which delivery model dominates?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
             "options": [
                 {
-                    "text": "Project delivery on demand",
-                    "weights": full_weights("InternalOutsourcer", "CompetenceCenter"),
-                },
-                {
-                    "text": "High-velocity feature delivery",
-                    "weights": full_weights("FeatureFactory", "ProductFactory"),
-                },
-                {
-                    "text": "Product lines and roadmaps",
-                    "weights": full_weights("ProductFactory", "PlatformHouse"),
-                },
-            ],
-        },
-        {
-            "text": "How do you fund platform investments?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": DRIVERS[4],
-            "options": [
-                {
-                    "text": "Minimize cost, outsource where possible",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-                {
-                    "text": "Invest to scale the platform",
-                    "weights": full_weights("PlatformHouse", "Operator"),
-                },
-                {
-                    "text": "Invest selectively for business needs",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-            ],
-        },
-        {
-            "text": "What is the level of regulatory requirements?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[3],
-            "scale_primary": "CompetenceCenter",
-            "scale_secondary": "Operator",
-        },
-        {
-            "text": "What do you prioritize in hiring?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
-            "options": [
-                {
-                    "text": "Deep expertise and standards",
+                    "text": "Через единый центр и стандартизированные процессы",
                     "weights": full_weights("CompetenceCenter", "Operator"),
                 },
                 {
-                    "text": "Speed and flexibility",
+                    "text": "Через автономные команды с высокой скоростью",
                     "weights": full_weights("FeatureFactory", "ProductFactory"),
                 },
                 {
-                    "text": "Global delivery scale",
-                    "weights": full_weights("CaptiveExporter", "InternalOutsourcer"),
+                    "text": "Через программу трансформации с межфункциональной координацией",
+                    "weights": full_weights("DigitalTransformationCenter", "PlatformHouse"),
                 },
             ],
         },
         {
-            "text": "How do you run transformation initiatives?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
-            "options": [
-                {
-                    "text": "Central transformation office",
-                    "weights": full_weights("DigitalTransformationCenter", "Operator"),
-                },
-                {
-                    "text": "Distributed product ownership",
-                    "weights": full_weights("ProductFactory", "PlatformHouse"),
-                },
-                {
-                    "text": "Minimal transformation focus",
-                    "weights": full_weights("InternalOutsourcer", "Operator"),
-                },
-            ],
-        },
-        {
-            "text": "How significant is external customer delivery?",
+            "group_name": "Роль и границы",
+            "text": "Насколько четко определены границы сервисов и команд?",
             "type": QuestionType.SCALE,
             "required": True,
-            "driver_tag": None,
-            "scale_primary": "CaptiveExporter",
-            "scale_secondary": "PlatformHouse",
-        },
-        {
-            "text": "How fast do you ship new functionality?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[1],
-            "scale_primary": "FeatureFactory",
-            "scale_secondary": "ProductFactory",
-        },
-        {
-            "text": "How important is architectural standardization?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
-            "scale_primary": "CompetenceCenter",
-            "scale_secondary": "PlatformHouse",
-        },
-        {
-            "text": "Where are key competencies concentrated?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
-            "options": [
-                {
-                    "text": "Internal center of excellence",
-                    "weights": full_weights("CompetenceCenter", "DigitalTransformationCenter"),
-                },
-                {
-                    "text": "Product teams",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "External providers",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-            ],
-        },
-        {
-            "text": "How automated are your operations?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[2],
-            "scale_primary": "Operator",
-            "scale_secondary": "PlatformHouse",
-        },
-        {
-            "text": "How many active product lines do you run?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
-            "scale_primary": "ProductFactory",
-            "scale_secondary": "FeatureFactory",
-        },
-        {
-            "text": "How do you justify IT spend?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": DRIVERS[4],
-            "options": [
-                {
-                    "text": "Cost minimization",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-                {
-                    "text": "Product profitability",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "Reliability and compliance",
-                    "weights": full_weights("Operator", "CompetenceCenter"),
-                },
-            ],
-        },
-        {
-            "text": "How critical is market responsiveness?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": DRIVERS[1],
-            "scale_primary": "DigitalTransformationCenter",
-            "scale_secondary": "FeatureFactory",
-        },
-        {
-            "text": "Which security approach dominates?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": DRIVERS[3],
-            "options": [
-                {
-                    "text": "Centralized security policies",
-                    "weights": full_weights("CompetenceCenter", "Operator"),
-                },
-                {
-                    "text": "Shared ownership in teams",
-                    "weights": full_weights("ProductFactory", "PlatformHouse"),
-                },
-                {
-                    "text": "Compliance via external standards",
-                    "weights": full_weights("CaptiveExporter", "InternalOutsourcer"),
-                },
-            ],
-        },
-        {
-            "text": "How unified is your platform stack?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
+            "driver_tag": DRIVERS[0],
             "scale_primary": "PlatformHouse",
-            "scale_secondary": "Operator",
+            "scale_secondary": "CompetenceCenter",
         },
         {
-            "text": "Who owns SLA accountability?",
-            "type": QuestionType.SINGLE,
+            "group_name": "Роль и границы",
+            "text": "Насколько критична предсказуемость операций и SLA?",
+            "type": QuestionType.SCALE,
             "required": True,
             "driver_tag": DRIVERS[2],
-            "options": [
-                {
-                    "text": "Central operations owner",
-                    "weights": full_weights("Operator", "PlatformHouse"),
-                },
-                {
-                    "text": "Product teams",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "Outsourcing with contracts",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-            ],
-        },
-        {
-            "text": "How important is global delivery capability?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
-            "scale_primary": "CaptiveExporter",
-            "scale_secondary": "InternalOutsourcer",
-        },
-        {
-            "text": "How do you develop internal capabilities?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
-            "options": [
-                {
-                    "text": "Center of excellence programs",
-                    "weights": full_weights("CompetenceCenter", "DigitalTransformationCenter"),
-                },
-                {
-                    "text": "Product-driven practices",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "Rely on market providers",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-            ],
-        },
-        {
-            "text": "How mature is your product management?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
-            "scale_primary": "ProductFactory",
-            "scale_secondary": "FeatureFactory",
-        },
-        {
-            "text": "How often do you run technology transformations?",
-            "type": QuestionType.SCALE,
-            "required": True,
-            "driver_tag": None,
-            "scale_primary": "DigitalTransformationCenter",
+            "scale_primary": "Operator",
             "scale_secondary": "PlatformHouse",
-        },
-        {
-            "text": "Where do core platform services live?",
-            "type": QuestionType.SINGLE,
-            "required": True,
-            "driver_tag": None,
-            "options": [
-                {
-                    "text": "In a single platform layer",
-                    "weights": full_weights("PlatformHouse", "Operator"),
-                },
-                {
-                    "text": "Embedded in product verticals",
-                    "weights": full_weights("ProductFactory", "FeatureFactory"),
-                },
-                {
-                    "text": "Provided by external vendors",
-                    "weights": full_weights("InternalOutsourcer", "CaptiveExporter"),
-                },
-            ],
         },
     ]
+
+    for archetype in ARCHETYPES:
+        secondary = SECONDARY[archetype]
+        opposite = OPPOSITE[archetype]
+        label = ARCHETYPE_LABELS[archetype]
+        group_name = f"Архетип: {label}"
+
+        questions.append(
+            {
+                "group_name": group_name,
+                "text": f"Насколько вашей организации близок управленческий фокус «{label}»?",
+                "type": QuestionType.SCALE,
+                "required": True,
+                "driver_tag": None,
+                "scale_primary": archetype,
+                "scale_secondary": secondary,
+            }
+        )
+        questions.append(
+            {
+                "group_name": group_name,
+                "text": f"Какой сценарий лучше описывает вашу организацию в контексте «{label}»?",
+                "type": QuestionType.SINGLE,
+                "required": True,
+                "driver_tag": None,
+                "options": [
+                    {
+                        "text": f"Явный приоритет на модель {label}",
+                        "weights": full_weights(archetype, secondary),
+                    },
+                    {
+                        "text": "Сбалансированная модель между текущим и соседним архетипом",
+                        "weights": full_weights(secondary, archetype),
+                    },
+                    {
+                        "text": "Фокус на альтернативной организационной модели",
+                        "weights": full_weights(opposite, secondary),
+                    },
+                ],
+            }
+        )
+
+    return questions
 
 
 def seed() -> None:
     session = SessionLocal()
     try:
-        existing = session.scalar(select(TestVersion.id).limit(1))
+        existing = session.scalar(select(TestVersion.id).where(TestVersion.name == VERSION_NAME))
         if existing is not None:
-            print("Database already seeded")
+            print(f"Version {VERSION_NAME} already seeded")
             return
 
-        version = TestVersion(name="v1", status=TestStatus.PUBLISHED)
+        version = TestVersion(name=VERSION_NAME, status=TestStatus.PUBLISHED)
         session.add(version)
         session.flush()
 
@@ -394,6 +208,7 @@ def seed() -> None:
                 type=q["type"],
                 required=q["required"],
                 driver_tag=q["driver_tag"],
+                group_name=q["group_name"],
             )
             session.add(question)
             session.flush()
@@ -420,7 +235,7 @@ def seed() -> None:
                     session.add(option)
 
         session.commit()
-        print("Seed completed")
+        print(f"Seed completed: {VERSION_NAME}")
     finally:
         session.close()
 

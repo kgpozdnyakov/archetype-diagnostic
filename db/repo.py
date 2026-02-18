@@ -60,9 +60,15 @@ def add_question(
     qtype: QuestionType,
     required: bool,
     driver_tag: str | None,
+    group_name: str | None = None,
 ) -> Question:
     question = Question(
-        version_id=version_id, text=text, type=qtype, required=required, driver_tag=driver_tag
+        version_id=version_id,
+        text=text,
+        type=qtype,
+        required=required,
+        driver_tag=driver_tag,
+        group_name=group_name,
     )
     session.add(question)
     session.commit()

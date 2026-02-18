@@ -22,9 +22,6 @@ def upgrade() -> None:
     test_status = sa.Enum("draft", "published", name="teststatus")
     question_type = sa.Enum("single", "scale", name="questiontype")
 
-    test_status.create(op.get_bind(), checkfirst=True)
-    question_type.create(op.get_bind(), checkfirst=True)
-
     op.create_table(
         "test_versions",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -41,6 +38,7 @@ def upgrade() -> None:
         sa.Column("type", question_type, nullable=False),
         sa.Column("required", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("driver_tag", sa.String(length=100), nullable=True),
+        sa.Column("group_name", sa.String(length=120), nullable=True),
     )
 
     op.create_table(
