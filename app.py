@@ -4,7 +4,6 @@ import csv
 import io
 import json
 import os
-from math import ceil
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -39,10 +38,24 @@ def render_db_not_ready() -> None:
     st.stop()
 
 
+def fix_mojibake(text: str | None) -> str:
+    if not text:
+        return ""
+    try:
+        repaired = text.encode("cp1251").decode("utf-8")
+    except UnicodeError:
+        return text
+    bad_src = text.count("Р") + text.count("С")
+    bad_new = repaired.count("Р") + repaired.count("С")
+    return repaired if bad_new < bad_src else text
+
+
 if "started" not in st.session_state:
     st.session_state.started = False
 if "page" not in st.session_state:
     st.session_state.page = 0
+if "group_page" not in st.session_state:
+    st.session_state.group_page = st.session_state.page
 if "completed" not in st.session_state:
     st.session_state.completed = False
 if "last_result" not in st.session_state:
@@ -75,6 +88,14 @@ with SessionLocal() as session:
     questions = sorted(version.questions, key=lambda q: q.id)
 
     option_by_id = {opt.id: opt for q in questions for opt in q.options}
+    grouped_questions: list[tuple[str, list]] = []
+    group_index_by_name: dict[str, int] = {}
+    for q in questions:
+        group_name = q.group_name or "Без группы"
+        if group_name not in group_index_by_name:
+            group_index_by_name[group_name] = len(grouped_questions)
+            grouped_questions.append((group_name, []))
+        grouped_questions[group_index_by_name[group_name]][1].append(q)
 
     st.write(
         "Ответьте на вопросы по шкале 0–3. Все обязательные вопросы должны быть заполнены."
@@ -83,31 +104,36 @@ with SessionLocal() as session:
     if not st.session_state.started:
         if st.button("Start"):
             st.session_state.started = True
+            st.session_state.group_page = 0
         st.stop()
 
-    page_size = 8
-    total_pages = ceil(len(questions) / page_size)
-    current_page = min(st.session_state.page, total_pages - 1)
+    total_groups = len(grouped_questions)
+    if total_groups == 0:
+        st.info("No questions available for this version.")
+        st.stop()
+    current_group_page = min(st.session_state.group_page, total_groups - 1)
+    current_group_name, current_group_questions = grouped_questions[current_group_page]
+    is_last_group = current_group_page >= total_groups - 1
 
-    page_questions = questions[current_page * page_size : (current_page + 1) * page_size]
-    previous_group = (
-        questions[current_page * page_size - 1].group_name if current_page * page_size > 0 else None
-    )
+    display_group_name = fix_mojibake(current_group_name)
+    group_parts = [part.strip() for part in display_group_name.split("|")]
+    archetype_title = group_parts[0] if len(group_parts) >= 2 else None
+    group_title = " | ".join(group_parts[1:]) if len(group_parts) >= 2 else display_group_name
 
-    st.caption(f"Страница {current_page + 1} из {total_pages}")
+    st.caption(f"Группа {current_group_page + 1} из {total_groups}")
+    if archetype_title:
+        st.markdown(f"### Архетип: {archetype_title}")
+    st.markdown(f"#### {group_title}")
 
-    for q in page_questions:
-        if q.group_name and q.group_name != previous_group:
-            st.markdown(f"### {q.group_name}")
-        previous_group = q.group_name
-        st.subheader(q.text)
+    for q in current_group_questions:
+        st.subheader(fix_mojibake(q.text))
         key = f"q_{q.id}"
         if q.type == QuestionType.SINGLE:
             option_ids = [opt.id for opt in q.options]
             st.radio(
                 "Выберите вариант",
                 options=option_ids,
-                format_func=lambda oid: option_by_id[oid].text,
+                format_func=lambda oid: fix_mojibake(option_by_id[oid].text),
                 key=key,
                 index=None,
             )
@@ -118,24 +144,35 @@ with SessionLocal() as session:
             st.radio(
                 "Оценка 0–3",
                 options=option_ids,
-                format_func=lambda oid: option_by_id[oid].text,
+                format_func=lambda oid: fix_mojibake(option_by_id[oid].text),
                 key=key,
                 index=None,
             )
 
     col_prev, col_next = st.columns(2)
-    if col_prev.button("Назад", disabled=current_page == 0):
-        st.session_state.page = max(0, current_page - 1)
+    if col_prev.button("Назад", disabled=current_group_page == 0):
+        st.session_state.group_page = max(0, current_group_page - 1)
         st.rerun()
-    if col_next.button("Далее", disabled=current_page >= total_pages - 1):
-        st.session_state.page = min(total_pages - 1, current_page + 1)
-        st.rerun()
+    if col_next.button("Далее", disabled=is_last_group):
+        missing_in_group = [
+            q.text
+            for q in current_group_questions
+            if q.required and not st.session_state.get(f"q_{q.id}")
+        ]
+        if missing_in_group:
+            st.error("Заполните все обязательные вопросы текущей группы, чтобы перейти дальше.")
+        else:
+            st.session_state.group_page = min(total_groups - 1, current_group_page + 1)
+            st.rerun()
 
     st.divider()
     user_label = st.text_input("Метка респондента (опционально)")
     comment = st.text_area("Комментарий (опционально)")
 
-    if st.button("Отправить"):
+    if not is_last_group:
+        st.info("После заполнения текущей группы нажмите «Далее» для перехода к следующей.")
+
+    if st.button("Завершить и отправить", disabled=not is_last_group):
         missing = []
         answers: dict[str, dict[str, object]] = {}
         weights_list = []
@@ -363,8 +400,6 @@ with SessionLocal() as session:
                     file_name="assessment_stats.json",
                     mime="application/json",
                 )
-
-
 
 
 
